@@ -1,3 +1,9 @@
+import sys
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8")
+if hasattr(sys.stderr, "reconfigure"):
+    sys.stderr.reconfigure(encoding="utf-8")
+
 from pathlib import Path
 import traceback
 
@@ -102,9 +108,15 @@ async def analyze_resume(
                 await resume.read()
             )
 
-        raw_text = read_pdf(
-            str(file_path)
-        )
+        import unicodedata
+        raw_text = unicodedata.normalize("NFKD", read_pdf(str(file_path)))
+        job_description = unicodedata.normalize("NFKD", job_description)
+
+        if not raw_text.strip():
+            raise HTTPException(
+                status_code=400,
+                detail="The uploaded PDF does not contain any readable text. It may be a scanned image or empty. Please upload a text-based PDF."
+            )
 
         state = {
             "raw_resume_text":
@@ -121,6 +133,44 @@ async def analyze_resume(
         return result
 
     except Exception as e:
+        # Check if there is a UnicodeEncodeError in the exception chain
+        curr_e = e
+        unicode_err = None
+        while curr_e is not None:
+            if isinstance(curr_e, UnicodeEncodeError):
+                unicode_err = curr_e
+                break
+            curr_e = getattr(curr_e, "__context__", None) or getattr(curr_e, "__cause__", None)
+
+        if unicode_err is not None:
+            bad_char_str = "Unknown"
+            if hasattr(unicode_err, "object") and unicode_err.object:
+                start = getattr(unicode_err, "start", 0)
+                if start < len(unicode_err.object):
+                    bad_char = unicode_err.object[start]
+                    bad_char_str = f"\\u{ord(bad_char):04x}"
+
+            filename = "Unknown"
+            line_number = "Unknown"
+            tb = unicode_err.__traceback__ or e.__traceback__
+            if tb:
+                tb_list = traceback.extract_tb(tb)
+                if tb_list:
+                    last_tb = tb_list[-1]
+                    filename = last_tb.filename
+                    line_number = last_tb.lineno
+
+            error_detail = (
+                f"UnicodeEncodeError: '{unicode_err.encoding}' codec can't encode character '{bad_char_str}' "
+                f"at {filename}:{line_number}"
+            )
+            print("\n========== UNICODE ERROR ==========")
+            traceback.print_exc()
+            print("===================================\n")
+            raise HTTPException(
+                status_code=500,
+                detail=error_detail
+            )
 
         print(
             "\n========== ERROR =========="

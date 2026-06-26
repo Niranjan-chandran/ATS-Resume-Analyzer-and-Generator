@@ -1,4 +1,8 @@
 import sys
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8")
+if hasattr(sys.stderr, "reconfigure"):
+    sys.stderr.reconfigure(encoding="utf-8")
 import os
 import traceback
 
@@ -14,11 +18,11 @@ try:
 
     from backend.models.state import AgentState
 
-    print("✓ state imported")
+    print("[OK] state imported")
 
     from backend.graph.workflow import app_workflow
 
-    print("✓ workflow imported")
+    print("[OK] workflow imported")
 
     print(
         "\nSUCCESS: All imports loaded correctly."

@@ -63,25 +63,32 @@ export const ResumeProvider = ({ children }) => {
       };
 
       const links = {
-        linkedin: "",
-        github: "",
-        portfolio: "",
-        leetcode: "",
-        hackerrank: "",
-        kaggle: "",
-        other_urls: [],
+        linkedin: cleanLink(optimized.links?.linkedin || parsed.links?.linkedin || ""),
+        github: cleanLink(optimized.links?.github || parsed.links?.github || ""),
+        portfolio: cleanLink(optimized.links?.portfolio || parsed.links?.portfolio || ""),
+        leetcode: cleanLink(optimized.links?.leetcode || parsed.links?.leetcode || ""),
+        hackerrank: cleanLink(optimized.links?.hackerrank || parsed.links?.hackerrank || ""),
+        kaggle: cleanLink(optimized.links?.kaggle || parsed.links?.kaggle || ""),
+        other_urls: (optimized.links?.other_urls || parsed.links?.other_urls || []).map(cleanLink).filter(Boolean),
       };
 
       // Resolve summary (prefer optimized summary if available)
       const summary = optimized.optimized_summary || parsed.summary || "";
 
-      // Resolve skills: parsed_resume.skills is List[str]. optimized_resume.optimized_skills is Dict[str, List[str]]
-      // Let's create a combined list or prefer optimized_skills flattened, or parsed_resume.skills
-      let skills = [];
-      if (optimized.optimized_skills && Object.keys(optimized.optimized_skills).length > 0) {
-        skills = Object.values(optimized.optimized_skills).flat();
-      } else if (parsed.skills) {
-        skills = [...parsed.skills];
+      // Resolve skills: parsed_resume.skills and optimized_resume.optimized_skills are Dict[str, List[str]]
+      // Resolve skills defensively
+      let skills = {};
+      const rawOptimizedSkills = optimized.optimized_skills;
+      const rawParsedSkills = parsed.skills;
+
+      if (rawOptimizedSkills && typeof rawOptimizedSkills === "object" && !Array.isArray(rawOptimizedSkills)) {
+        skills = { ...rawOptimizedSkills };
+      } else if (rawParsedSkills) {
+        if (Array.isArray(rawParsedSkills)) {
+          skills = { "Skills": [...rawParsedSkills] };
+        } else if (typeof rawParsedSkills === "object") {
+          skills = { ...rawParsedSkills };
+        }
       }
 
       // Resolve projects
@@ -89,45 +96,53 @@ export const ResumeProvider = ({ children }) => {
         ? optimized.optimized_projects
         : (parsed.projects || []);
       
-      const projects = rawProjects.map(proj => {
+      const projects = Array.isArray(rawProjects) ? rawProjects.map(proj => {
+        if (!proj) return { title: "", technologies: [], description: [], link: "", hadGenericLink: false };
+        const rawLink = proj.link || proj.github || "";
+        const isGeneric = isGenericGitHubUrl(rawLink);
         return {
           title: proj.title || "",
-          technologies: proj.technologies ? [...proj.technologies] : [],
-          description: proj.description ? [...proj.description] : [],
-          link: "",
-          hadGenericLink: false,
+          technologies: Array.isArray(proj.technologies) ? [...proj.technologies] : [],
+          description: Array.isArray(proj.description) ? [...proj.description] : [],
+          link: isGeneric ? "" : cleanLink(rawLink),
+          hadGenericLink: isGeneric,
         };
-      });
+      }) : [];
 
       // Resolve experience
       const rawExperience = (optimized.optimized_experience && optimized.optimized_experience.length > 0)
         ? optimized.optimized_experience
         : (parsed.experience || []);
 
-      const experience = rawExperience.map(exp => ({
-        company: exp.company || "",
-        role: exp.role || exp.title || "",
-        location: exp.location || "",
-        start_date: exp.start_date || "",
-        end_date: exp.end_date || "",
-        description: exp.description ? [...exp.description] : [],
-      }));
+      const experience = Array.isArray(rawExperience) ? rawExperience.map(exp => {
+        if (!exp) return { company: "", role: "", location: "", start_date: "", end_date: "", description: [] };
+        return {
+          company: exp.company || "",
+          role: exp.role || exp.title || "",
+          location: exp.location || "",
+          start_date: exp.start_date || "",
+          end_date: exp.end_date || "",
+          description: Array.isArray(exp.description) ? [...exp.description] : [],
+        };
+      }) : [];
 
       // Resolve certifications
-      const certifications = (optimized.certifications || parsed.certifications || []).map(cert => ({
-        name: cert.name || "",
-        date: cert.date || "",
-      }));
+      const rawCertifications = optimized.certifications || parsed.certifications || [];
+      const certifications = Array.isArray(rawCertifications) ? rawCertifications.map(cert => ({
+        name: cert?.name || "",
+        date: cert?.date || "",
+      })) : [];
 
       // Resolve education
-      const education = (optimized.education || parsed.education || []).map(edu => ({
-        institution: edu.institution || "",
-        degree: edu.degree || "",
-        major: edu.major || "",
-        start_date: edu.start_date || "",
-        end_date: edu.end_date || "",
-        gpa: edu.gpa || "",
-      }));
+      const rawEducation = optimized.education || parsed.education || [];
+      const education = Array.isArray(rawEducation) ? rawEducation.map(edu => ({
+        institution: edu?.institution || "",
+        degree: edu?.degree || "",
+        major: edu?.major || "",
+        start_date: edu?.start_date || "",
+        end_date: edu?.end_date || "",
+        gpa: edu?.gpa || "",
+      })) : [];
 
       // Resolve extra sections
       const extra_sections = optimized.extra_sections || parsed.extra_sections || {

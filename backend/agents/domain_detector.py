@@ -133,9 +133,16 @@ def heuristic_domain_detection(
     parsed_resume: ParsedResume
 ) -> str:
 
-    text = " ".join(
-        parsed_resume.skills
-    ).lower()
+    if isinstance(parsed_resume.skills, dict):
+        all_skills = []
+        for cat_skills in parsed_resume.skills.values():
+            if isinstance(cat_skills, list):
+                all_skills.extend(cat_skills)
+        text = " ".join(all_skills).lower()
+    else:
+        text = " ".join(
+            parsed_resume.skills
+        ).lower()
 
     ai_keywords = [
         "tensorflow",

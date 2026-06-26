@@ -6,6 +6,8 @@ import { normalizeUrl, isGenericGitHubUrl } from "../context/ResumeContext";
 export default function ResumeEditor({ resumeData, onSave }) {
   const [activeTab, setActiveTab] = useState("contact");
   const [formData, setFormData] = useState({ ...resumeData });
+  const [newCategoryName, setNewCategoryName] = useState("");
+  const [newSkillInputs, setNewSkillInputs] = useState({});
 
   // Help state propagation
   const updateField = (section, field, value) => {
@@ -91,23 +93,61 @@ export default function ResumeEditor({ resumeData, onSave }) {
     onSave(updated);
   };
 
-  // Helper for skills tags
-  const [newSkill, setNewSkill] = useState("");
-  const addSkill = () => {
-    if (newSkill.trim() && !formData.skills.includes(newSkill.trim())) {
-      const updatedSkills = [...formData.skills, newSkill.trim()];
-      const updated = { ...formData, skills: updatedSkills };
+  // Helpers for categorized skills
+  const addSkillCategory = (catName) => {
+    if (catName && (!formData.skills || !formData.skills[catName])) {
+      const updated = {
+        ...formData,
+        skills: {
+          ...(formData.skills || {}),
+          [catName]: []
+        }
+      };
       setFormData(updated);
       onSave(updated);
-      setNewSkill("");
     }
   };
 
-  const removeSkill = (skillToRemove) => {
-    const updatedSkills = formData.skills.filter(s => s !== skillToRemove);
-    const updated = { ...formData, skills: updatedSkills };
-    setFormData(updated);
-    onSave(updated);
+  const removeSkillCategory = (catName) => {
+    if (formData.skills && formData.skills[catName]) {
+      const updatedSkills = { ...formData.skills };
+      delete updatedSkills[catName];
+      const updated = { ...formData, skills: updatedSkills };
+      setFormData(updated);
+      onSave(updated);
+    }
+  };
+
+  const addSkillToCategory = (category, skill) => {
+    if (skill && category && formData.skills && formData.skills[category]) {
+      if (!formData.skills[category].includes(skill)) {
+        const updatedCategorySkills = [...formData.skills[category], skill];
+        const updated = {
+          ...formData,
+          skills: {
+            ...formData.skills,
+            [category]: updatedCategorySkills
+          }
+        };
+        setFormData(updated);
+        onSave(updated);
+      }
+    }
+  };
+
+  const removeSkillFromCategory = (category, skillToRemove) => {
+    if (category && formData.skills && formData.skills[category]) {
+      const updatedCategorySkills = formData.skills[category].filter(s => s !== skillToRemove);
+      const updated = {
+        ...formData,
+        skills: {
+          ...formData.skills,
+          [category]: updatedCategorySkills
+        }
+      };
+      setFormData(updated);
+      onSave(updated);
+    }
   };
 
   const tabs = [
@@ -269,41 +309,128 @@ export default function ResumeEditor({ resumeData, onSave }) {
 
             <div>
               <h3 className="text-base font-extrabold text-slate-100 border-b border-slate-800 pb-2 mb-4">Technical & Core Skills</h3>
-              <div className="flex gap-2 mb-4">
+              
+              {/* Add New Category Control */}
+              <div className="flex gap-2 mb-6">
                 <input
                   type="text"
-                  value={newSkill}
-                  onChange={(e) => setNewSkill(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && addSkill()}
+                  placeholder="New Category Name (e.g. Languages, Cloud)..."
+                  value={newCategoryName}
+                  onChange={(e) => setNewCategoryName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      const catName = newCategoryName.trim();
+                      if (catName) {
+                        addSkillCategory(catName);
+                        setNewCategoryName("");
+                      }
+                    }
+                  }}
                   className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-slate-200 focus:outline-none focus:border-indigo-500 transition-colors"
-                  placeholder="Add a skill tag (e.g. React)..."
                 />
                 <button
-                  onClick={addSkill}
+                  type="button"
+                  onClick={() => {
+                    const catName = newCategoryName.trim();
+                    if (catName) {
+                      addSkillCategory(catName);
+                      setNewCategoryName("");
+                    }
+                  }}
                   className="px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-sm transition-colors flex items-center gap-1"
                 >
                   <Plus className="w-4 h-4" />
-                  Add
+                  Add Category
                 </button>
               </div>
-              <div className="flex flex-wrap gap-2 p-4 bg-slate-950/60 border border-slate-850 rounded-2xl min-h-[100px]">
-                {formData.skills && formData.skills.length > 0 ? (
-                  formData.skills.map((skill, idx) => (
-                    <span
-                      key={idx}
-                      className="inline-flex items-center gap-1.5 px-3 py-1 bg-slate-900 border border-slate-800 text-slate-200 rounded-full text-xs font-semibold"
-                    >
-                      {skill}
-                      <button
-                        onClick={() => removeSkill(skill)}
-                        className="text-slate-500 hover:text-red-400 font-bold ml-0.5 text-sm"
-                      >
-                        &times;
-                      </button>
-                    </span>
+
+              {/* Render Categories */}
+              <div className="space-y-6">
+                {formData.skills && typeof formData.skills === "object" && !Array.isArray(formData.skills) && Object.keys(formData.skills).length > 0 ? (
+                  Object.entries(formData.skills).map(([category, categorySkills]) => (
+                    <div key={category} className="p-5 bg-slate-950/50 border border-slate-850 rounded-2xl space-y-4">
+                      <div className="flex justify-between items-center border-b border-slate-800 pb-2">
+                        <span className="text-xs font-black text-indigo-400 uppercase tracking-wider">{category}</span>
+                        <button
+                          type="button"
+                          onClick={() => removeSkillCategory(category)}
+                          className="text-slate-500 hover:text-red-400 p-1 transition-colors"
+                          title="Delete Category"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+
+                      {/* Tag list */}
+                      <div className="flex flex-wrap gap-2 min-h-[40px] items-center">
+                        {Array.isArray(categorySkills) && categorySkills.length > 0 ? (
+                          categorySkills.map((skill, idx) => (
+                            <span
+                              key={idx}
+                              className="inline-flex items-center gap-1.5 px-3 py-1 bg-slate-900 border border-slate-800 text-slate-200 rounded-full text-xs font-semibold"
+                            >
+                              {skill}
+                              <button
+                                type="button"
+                                onClick={() => removeSkillFromCategory(category, skill)}
+                                className="text-slate-500 hover:text-red-400 font-bold ml-0.5 text-sm"
+                              >
+                                &times;
+                              </button>
+                            </span>
+                          ))
+                        ) : (
+                          <span className="text-xs text-slate-550 italic">No skills in this category yet.</span>
+                        )}
+                      </div>
+
+                      {/* Add Skill to Category */}
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          placeholder={`Add skill to ${category}...`}
+                          value={newSkillInputs[category] || ""}
+                          onChange={(e) => setNewSkillInputs({
+                            ...newSkillInputs,
+                            [category]: e.target.value
+                          })}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              const newSkillVal = (newSkillInputs[category] || "").trim();
+                              if (newSkillVal) {
+                                addSkillToCategory(category, newSkillVal);
+                                setNewSkillInputs({
+                                  ...newSkillInputs,
+                                  [category]: ""
+                                });
+                              }
+                            }
+                          }}
+                          className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-indigo-500"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const newSkillVal = (newSkillInputs[category] || "").trim();
+                            if (newSkillVal) {
+                              addSkillToCategory(category, newSkillVal);
+                              setNewSkillInputs({
+                                ...newSkillInputs,
+                                [category]: ""
+                              });
+                            }
+                          }}
+                          className="px-3.5 py-2 rounded-xl bg-slate-900 border border-slate-800 text-indigo-400 hover:bg-indigo-600 hover:text-white text-xs font-bold transition-all"
+                        >
+                          Add
+                        </button>
+                      </div>
+                    </div>
                   ))
                 ) : (
-                  <span className="text-xs text-slate-500 m-auto">No skills added yet.</span>
+                  <div className="p-8 text-center bg-slate-950/60 border border-slate-850 rounded-2xl text-xs text-slate-500">
+                    No skill categories created yet. Create a category above to get started.
+                  </div>
                 )}
               </div>
             </div>

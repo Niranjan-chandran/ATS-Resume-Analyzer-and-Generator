@@ -4,6 +4,21 @@ import { useResume } from "../context/ResumeContext";
 import { downloadPdf, downloadTex, downloadCls, downloadZip, compileResume } from "../services/api";
 import { Eye, FileDown, Download, Globe, Github, Linkedin, Award, Briefcase, FileCode, CheckCircle, ChevronLeft, FileText, Archive, Info, Loader2 } from "lucide-react";
 
+const formatAxiosError = (err, defaultMsg) => {
+  if (err.response) {
+    const status = err.response.status;
+    const statusText = err.response.statusText;
+    let detail = err.response.data?.detail || err.response.data?.message || err.response.data || "";
+    if (typeof detail === "object") {
+      detail = JSON.stringify(detail, null, 2);
+    }
+    return `${status} ${statusText}\n\n${detail}`;
+  } else if (err.request) {
+    return `Network Error: Failed to connect to the backend server.\n\nRequested URL: ${err.config?.url || "Unknown"}\n\nPlease check if the backend is running and configured on the correct port (e.g., 8080).`;
+  }
+  return err.message || defaultMsg;
+};
+
 export default function PreviewPage() {
   const { editedResume } = useResume();
   const [isCompiling, setIsCompiling] = useState(false);
@@ -20,7 +35,7 @@ export default function PreviewPage() {
           setCompiledSuccess(true);
         } catch (err) {
           console.error("Compilation error:", err);
-          setCompileError(err.response?.data?.detail || "Failed to compile LaTeX / PDF resume. Please verify your fields are correct.");
+          setCompileError(formatAxiosError(err, "Failed to compile LaTeX / PDF resume. Please verify your fields are correct."));
         } finally {
           setIsCompiling(false);
         }
@@ -99,7 +114,7 @@ export default function PreviewPage() {
                 await compileResume(editedResume);
                 setCompiledSuccess(true);
               } catch (err) {
-                setCompileError(err.response?.data?.detail || "Failed to compile LaTeX / PDF resume.");
+                setCompileError(formatAxiosError(err, "Failed to compile LaTeX / PDF resume."));
               } finally {
                 setIsCompiling(false);
               }
@@ -265,19 +280,44 @@ export default function PreviewPage() {
         )}
 
         {/* Technical Skills */}
-        {skills && skills.length > 0 && (
+        {skills && (
           <div className="space-y-3">
             <h3 className="text-xs font-black uppercase text-indigo-400 tracking-wider">Skills</h3>
-            <div className="flex flex-wrap gap-1.5">
-              {skills.map((skill, idx) => (
-                <span
-                  key={idx}
-                  className="text-[10px] font-semibold bg-slate-950 border border-slate-850 text-slate-200 px-2.5 py-0.5 rounded-full"
-                >
-                  {skill}
-                </span>
-              ))}
-            </div>
+            {typeof skills === "object" && !Array.isArray(skills) ? (
+              <div className="space-y-3 text-xs">
+                {Object.entries(skills).map(([category, categorySkills]) => {
+                  if (!Array.isArray(categorySkills) || categorySkills.length === 0) return null;
+                  return (
+                    <div key={category} className="space-y-1.5">
+                      <div className="font-extrabold text-white text-xs">{category}:</div>
+                      <div className="flex flex-wrap gap-1.5">
+                        {categorySkills.map((skill, idx) => (
+                          <span
+                            key={idx}
+                            className="text-[10px] font-semibold bg-slate-950 border border-slate-850 text-slate-200 px-2.5 py-0.5 rounded-full"
+                          >
+                            {skill}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              skills.length > 0 && (
+                <div className="flex flex-wrap gap-1.5">
+                  {skills.map((skill, idx) => (
+                    <span
+                      key={idx}
+                      className="text-[10px] font-semibold bg-slate-950 border border-slate-850 text-slate-200 px-2.5 py-0.5 rounded-full"
+                    >
+                      {skill}
+                    </span>
+                  ))}
+                </div>
+              )
+            )}
           </div>
         )}
 

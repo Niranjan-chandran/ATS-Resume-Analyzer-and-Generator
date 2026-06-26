@@ -82,15 +82,6 @@ def convert_to_parsed_resume(
     back into ParsedResume.
     """
 
-    flat_skills = []
-
-    for category_skills in (
-        optimized_resume.optimized_skills.values()
-    ):
-        flat_skills.extend(
-            category_skills
-        )
-
     return ParsedResume(
 
         personal_info=
@@ -106,7 +97,7 @@ def convert_to_parsed_resume(
         optimized_resume.education,
 
         skills=
-        flat_skills,
+        optimized_resume.optimized_skills,
 
         projects=
         optimized_resume.optimized_projects,

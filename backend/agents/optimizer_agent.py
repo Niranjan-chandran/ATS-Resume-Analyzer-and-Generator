@@ -182,9 +182,7 @@ def fallback_optimizer(
 
         education=parsed_resume.education,
 
-        optimized_skills={
-            "Skills": parsed_resume.skills
-        },
+        optimized_skills=parsed_resume.skills,
 
         optimized_projects=parsed_resume.projects,
 

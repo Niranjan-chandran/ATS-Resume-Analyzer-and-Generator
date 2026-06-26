@@ -29,7 +29,22 @@ export default function ProcessingPage() {
         navigate("/dashboard");
       } catch (err) {
         console.error("Analysis failed:", err);
-        const errMsg = err.response?.data?.detail || err.message || "An unexpected error occurred while communicating with the analysis server.";
+        let errMsg = "";
+        if (err.response) {
+          const status = err.response.status;
+          const statusText = err.response.statusText;
+          let detail = err.response.data?.detail || err.response.data?.message || err.response.data || "";
+          
+          if (typeof detail === "object") {
+            detail = JSON.stringify(detail, null, 2);
+          }
+          
+          errMsg = `${status} ${statusText}\n\n${detail}`;
+        } else if (err.request) {
+          errMsg = `Network Error: Failed to connect to the backend server.\n\nRequested URL: ${err.config?.url || "Unknown"}\n\nPlease check if the backend server is running and configured on the correct port (e.g., 8080).`;
+        } else {
+          errMsg = err.message || "An unexpected error occurred.";
+        }
         setError(errMsg);
       }
     };

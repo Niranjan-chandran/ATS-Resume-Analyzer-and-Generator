@@ -117,7 +117,7 @@ class ParsedResume(BaseModel):
 
     education: List[EducationItem] = Field(default_factory=list)
 
-    skills: List[str] = Field(default_factory=list)
+    skills: Dict[str, List[str]] = Field(default_factory=dict)
 
     projects: List[ProjectItem] = Field(default_factory=list)
 

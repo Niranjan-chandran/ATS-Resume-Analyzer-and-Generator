@@ -133,6 +133,9 @@ def render_resume_template(
     if summary:
 
         latex.append(
+            r"\needspace{5\baselineskip}"
+        )
+        latex.append(
             r"\begin{rSection}{SUMMARY}"
         )
 
@@ -150,6 +153,9 @@ def render_resume_template(
 
     if resume.education:
 
+        latex.append(
+            r"\needspace{6\baselineskip}"
+        )
         latex.append(
             r"\begin{rSection}{EDUCATION}"
         )
@@ -182,16 +188,24 @@ def render_resume_template(
         resume,
         "optimized_skills",
         None
+    ) or getattr(
+        resume,
+        "skills",
+        None
     )
 
-    if skill_categories:
+    if skill_categories and isinstance(skill_categories, dict):
 
+        latex.append(
+            r"\needspace{5\baselineskip}"
+        )
         latex.append(
             r"\begin{rSection}{SKILLS}"
         )
 
-
         for category, skills in skill_categories.items():
+            if not skills:
+                continue
 
             latex.append(
                 f"\\textbf{{{escape_latex(category)}}}:\\\\"
@@ -214,15 +228,19 @@ def render_resume_template(
     elif hasattr(resume, "skills") and resume.skills:
 
         latex.append(
+            r"\needspace{5\baselineskip}"
+        )
+        latex.append(
             r"\begin{rSection}{SKILLS}"
         )
 
-        latex.append(
-            ", ".join(
-                escape_latex(skill)
-                for skill in resume.skills
+        if isinstance(resume.skills, list):
+            latex.append(
+                ", ".join(
+                    escape_latex(skill)
+                    for skill in resume.skills
+                )
             )
-        )
 
         latex.append(
             r"\end{rSection}"
@@ -244,6 +262,9 @@ def render_resume_template(
 
     if projects:
 
+        latex.append(
+            r"\needspace{8\baselineskip}"
+        )
         latex.append(
             r"\begin{rSection}{PROJECTS}"
         )
@@ -308,6 +329,9 @@ def render_resume_template(
     if experience:
 
         latex.append(
+            r"\needspace{9\baselineskip}"
+        )
+        latex.append(
             r"\begin{rSection}{EXPERIENCE}"
         )
         
@@ -362,6 +386,9 @@ def render_resume_template(
 
 
         latex.append(
+            r"\needspace{5\baselineskip}"
+        )
+        latex.append(
             r"\begin{samepage}"
         )
 
@@ -413,6 +440,9 @@ def render_resume_template(
 
         if values:
 
+            latex.append(
+                f"\\needspace{{5\\baselineskip}}"
+            )
             latex.append(
                 f"\\begin{{rSection}}{{{title}}}"
             )

@@ -63,6 +63,16 @@ def generate_structured_json(
         api_key=get_api_key()
     )
 
+    # Generate JSON schema instructions for the LLM
+    try:
+        schema_json = json.dumps(response_schema.model_json_schema(), indent=2)
+        schema_instruction = (
+            f"\n\nYou MUST return a JSON object matching this JSON schema:\n{schema_json}\n\n"
+            f"Do not include any explanation or extra fields. Return ONLY the valid JSON object."
+        )
+    except Exception:
+        schema_instruction = ""
+
     last_error = None
 
     for attempt in range(3):
@@ -71,11 +81,13 @@ def generate_structured_json(
 
             messages = []
 
-            if system_instruction:
-                messages.append({
-                    "role": "system",
-                    "content": system_instruction
-                })
+            # Combine system instructions with schema instruction
+            combined_system = (system_instruction or "You are a helpful assistant.") + schema_instruction
+
+            messages.append({
+                "role": "system",
+                "content": combined_system
+            })
 
             messages.append({
                 "role": "user",
@@ -85,7 +97,8 @@ def generate_structured_json(
             completion = client.chat.completions.create(
                 model=get_model_name(),
                 messages=messages,
-                temperature=0.2
+                temperature=0.2,
+                max_tokens=4096
             )
 
             content = (
@@ -95,23 +108,39 @@ def generate_structured_json(
                 .content
             )
 
-            print("\n========== GROQ RESPONSE ==========")
-            print(content)
-            print("===================================\n")
+            # Strip <think>...</think> reasoning blocks if present
+            import re
+            cleaned_content = re.sub(r"<think>.*?</think>", "", content, flags=re.DOTALL)
+            if "<think>" in cleaned_content:
+                cleaned_content = cleaned_content.split("<think>")[0]
+            cleaned_content = cleaned_content.strip()
+
+            print("\n========== GROQ RESPONSE (CLEANED) ==========")
+            print(cleaned_content)
+            print("=============================================\n")
 
             # ======================================
             # Extract JSON from Groq response
             # ======================================
 
-            start = content.find("{")
-            end = content.rfind("}")
-
-            if start == -1 or end == -1:
-                raise ValueError(
-                    "No JSON found in Groq response."
-                )
-
-            json_text = content[start:end + 1]
+            content_clean = cleaned_content
+            
+            # 1. Try to find markdown json code block
+            code_block_match = re.search(
+                r"```(?:json)?\s*(\{.*?\})\s*```",
+                content_clean,
+                re.DOTALL | re.IGNORECASE
+            )
+            if code_block_match:
+                json_text = code_block_match.group(1).strip()
+            else:
+                # 2. Fall back to finding the outermost curly braces
+                start = content_clean.find("{")
+                end = content_clean.rfind("}")
+                if start != -1 and end != -1:
+                    json_text = content_clean[start:end + 1]
+                else:
+                    json_text = content_clean
 
             data = json.loads(
                 json_text

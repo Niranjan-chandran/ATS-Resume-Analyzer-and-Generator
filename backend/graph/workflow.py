@@ -36,366 +36,476 @@ logger = logging.getLogger(
 def parse_resume_node(
     state: AgentState
 ) -> Dict[str, Any]:
+    try:
+        logger.info("Parsing Resume")
 
-    logger.info("Parsing Resume")
+        print("\n=============================================")
+        print("STAGE 1 & 2 & 3: EXTRACTED / NORMALIZED TEXT")
+        print(f"Text length: {len(state['raw_resume_text'])} characters")
+        print(f"Sample text (first 500 chars):\n{state['raw_resume_text'][:500]}")
+        print("=============================================\n")
 
-    parsed = parse_resume(
-        state["raw_resume_text"]
-    )
+        print("\n=============================================")
+        print("STAGE 4: TEXT SENT TO THE LLM")
+        print(f"Length of text sent to LLM: {len(state['raw_resume_text'])} chars")
+        print("=============================================\n")
 
-    print("\n========== PARSED RESUME ==========")
-    print(parsed)
-    print("===================================\n")
+        parsed = parse_resume(
+            state["raw_resume_text"]
+        )
 
-    return {
-        "parsed_resume": parsed
-    }
+        print("\n========== STAGE 7: PARSED RESUME OBJECT ==========")
+        print(parsed)
+        print("===================================================\n")
+
+        # Validate that resume parsing did not fail completely
+        is_empty = (
+            not parsed.personal_info.name.strip() and
+            not parsed.personal_info.email.strip() and
+            not parsed.education and
+            not parsed.experience and
+            not parsed.skills
+        )
+
+        if is_empty:
+            raise ValueError(
+                "Resume parsing failed completely. The document could not be read or does not contain standard sections like Name, Email, Education, or Experience."
+            )
+
+        updated_state = {
+            "parsed_resume": parsed
+        }
+
+        print("\n=============================================")
+        print("STAGE 8: LANGGRAPH STATE AFTER RESUME PARSER")
+        print(f"Parsed keys in state update: {list(updated_state.keys())}")
+        print(f"Parsed resume name: {parsed.personal_info.name}")
+        print("=============================================\n")
+
+        return updated_state
+    except Exception as e:
+        logger.error(f"Error in parse_resume_node: {e}")
+        import traceback
+        traceback.print_exc()
+        raise
 
 
 def domain_node(
     state: AgentState
 ) -> Dict[str, Any]:
+    try:
+        logger.info("Detecting Domain")
 
-    logger.info("Detecting Domain")
+        parsed = state["parsed_resume"]
 
-    parsed = state["parsed_resume"]
+        domain = detect_domain(parsed)
 
-    domain = detect_domain(parsed)
-
-    return {
-        "detected_domain": domain
-    }
+        return {
+            "detected_domain": domain
+        }
+    except Exception as e:
+        logger.error(f"Error in domain_node: {e}")
+        import traceback
+        traceback.print_exc()
+        raise
 
 
 def confidence_node(
     state: AgentState
 ) -> Dict[str, Any]:
+    try:
+        jd = state.get(
+            "job_description"
+        )
 
-    jd = state.get(
-        "job_description"
-    )
+        if not jd:
 
-    if not jd:
+            return {}
 
-        return {}
+        result = check_jd_confidence(
+            jd
+        )
 
-    result = check_jd_confidence(
-        jd
-    )
-
-    return {
-        "jd_confidence": result
-    }
+        return {
+            "jd_confidence": result
+        }
+    except Exception as e:
+        logger.error(f"Error in confidence_node: {e}")
+        import traceback
+        traceback.print_exc()
+        raise
 
 
 def scoring_node(
     state: AgentState
 ) -> Dict[str, Any]:
+    try:
+        print("\n=============================================")
+        print("STAGE 9: LANGGRAPH STATE BEFORE ATS SCORING")
+        print(f"Job Description length: {len(state.get('job_description', ''))}")
+        print(f"Parsed Resume available: {state.get('parsed_resume') is not None}")
+        print("=============================================\n")
 
-    parsed = state["parsed_resume"]
+        parsed = state["parsed_resume"]
 
-    jd = state.get(
-        "job_description"
-    )
+        jd = state.get(
+            "job_description"
+        )
 
-    report = score_resume(
-        parsed,
-        jd
-    )
+        report = score_resume(
+            parsed,
+            jd
+        )
 
-    return {
-        "scoring": report
-    }
+        return {
+            "scoring": report
+        }
+    except Exception as e:
+        logger.error(f"Error in scoring_node: {e}")
+        import traceback
+        traceback.print_exc()
+        raise
 
 
 def analysis_node(
     state: AgentState
 ) -> Dict[str, Any]:
+    try:
+        print("\n=============================================")
+        print("STAGE 10: DATA RECEIVED BY ANALYSIS AGENT")
+        print(f"Parsed Resume: {state.get('parsed_resume') is not None}")
+        print(f"Job Description: {state.get('job_description', '')[:100]}...")
+        print("=============================================\n")
 
-    parsed = state["parsed_resume"]
+        parsed = state["parsed_resume"]
 
-    jd = state.get(
-        "job_description"
-    )
+        jd = state.get(
+            "job_description"
+        )
 
-    report = analyze_resume(
-        parsed,
-        jd
-    )
+        report = analyze_resume(
+            parsed,
+            jd
+        )
 
-    return {
-        "analysis": report
-    }
+        return {
+            "analysis": report
+        }
+    except Exception as e:
+        logger.error(f"Error in analysis_node: {e}")
+        import traceback
+        traceback.print_exc()
+        raise
 
 
 def optimizer_node(
     state: AgentState
 ) -> Dict[str, Any]:
+    try:
+        parsed = state["parsed_resume"]
 
-    parsed = state["parsed_resume"]
-
-    jd = state.get(
-        "job_description"
-    )
-
-    optimized = optimize_resume(
-        parsed,
-        jd,
-        state.get(
-            "detected_domain"
+        jd = state.get(
+            "job_description"
         )
-    )
 
-    print(
-    "\n========== OPTIMIZER DEBUG =========="
-    )
+        optimized = optimize_resume(
+            parsed,
+            jd,
+            state.get(
+                "detected_domain"
+            )
+        )
 
-    print(
-    "OPTIMIZED SKILLS =",
-    optimized.optimized_skills
-    )
+        print(
+        "\n========== OPTIMIZER DEBUG =========="
+        )
 
-    print(
-    "\n=====================================\n"
-    )
+        print(
+        "OPTIMIZED SKILLS =",
+        optimized.optimized_skills
+        )
 
-    return {
-        "optimized_resume": optimized
-    }
+        print(
+        "\n=====================================\n"
+        )
+
+        return {
+            "optimized_resume": optimized
+        }
+    except Exception as e:
+        logger.error(f"Error in optimizer_node: {e}")
+        import traceback
+        traceback.print_exc()
+        raise
 
 def reeval_node(
     state: AgentState
 ) -> Dict[str, Any]:
+    try:
+        scoring = state["scoring"]
 
-    scoring = state["scoring"]
+        optimized = state[
+            "optimized_resume"
+        ]
 
-    optimized = state[
-        "optimized_resume"
-    ]
+        jd = state.get(
+            "job_description"
+        )
 
-    jd = state.get(
-        "job_description"
-    )
+        report = reevaluate_score(
+            scoring,
+            optimized,
+            jd
+        )
 
-    report = reevaluate_score(
-        scoring,
-        optimized,
-        jd
-    )
-
-    return {
-        "score_reeval": report
-    }
+        return {
+            "score_reeval": report
+        }
+    except Exception as e:
+        logger.error(f"Error in reeval_node: {e}")
+        import traceback
+        traceback.print_exc()
+        raise
 
 
 def interview_node(
     state: AgentState
 ) -> Dict[str, Any]:
+    try:
+        parsed = state["parsed_resume"]
 
-    parsed = state["parsed_resume"]
+        jd = state.get(
+            "job_description"
+        )
 
-    jd = state.get(
-        "job_description"
-    )
-
-    questions = (
-    generate_interview_questions(
-        parsed,
-        jd,
-        state.get(
-            "detected_domain"
+        questions = (
+        generate_interview_questions(
+            parsed,
+            jd,
+            state.get(
+                "detected_domain"
+            )
         )
     )
-)
 
-    return {
-        "interview_questions": questions
-    }
+        return {
+            "interview_questions": questions
+        }
+    except Exception as e:
+        logger.error(f"Error in interview_node: {e}")
+        import traceback
+        traceback.print_exc()
+        raise
 
 
 def recommendation_node(
     state: AgentState
 ) -> Dict[str, Any]:
+    try:
+        parsed = state["parsed_resume"]
 
-    parsed = state["parsed_resume"]
+        analysis = state["analysis"]
 
-    analysis = state["analysis"]
+        jd = state.get(
+            "job_description"
+        )
 
-    jd = state.get(
-        "job_description"
-    )
+        roadmap = generate_roadmap(
+            parsed,
+            analysis,
+            state.get(
+                "detected_domain"
+            ),
+            jd
+        )
 
-    roadmap = generate_roadmap(
-        parsed,
-        analysis,
-        state.get(
-            "detected_domain"
-        ),
-        jd
-    )
+        courses = recommend_courses(
+            parsed,
+            analysis,
+            state.get(
+                "detected_domain"
+            ),
+            jd
+        )
 
-    courses = recommend_courses(
-        parsed,
-        analysis,
-        state.get(
-            "detected_domain"
-        ),
-        jd
-    )
+        projects = recommend_projects(
+            parsed,
+            analysis,
+            state.get(
+                "detected_domain"
+            ),
+            jd
+        )
 
-    projects = recommend_projects(
-        parsed,
-        analysis,
-        state.get(
-            "detected_domain"
-        ),
-        jd
-    )
+        report = RecommendationsReport(
+            roadmap=roadmap,
+            courses=courses,
+            projects=projects
+        )
 
-    report = RecommendationsReport(
-        roadmap=roadmap,
-        courses=courses,
-        projects=projects
-    )
-
-    return {
-        "recommendations": report
-    }
+        return {
+            "recommendations": report
+        }
+    except Exception as e:
+        logger.error(f"Error in recommendation_node: {e}")
+        import traceback
+        traceback.print_exc()
+        raise
 
 
 def completeness_node(
     state: AgentState
 ) -> Dict[str, Any]:
+    try:
+        logger.info(
+            "Running Completeness Agent"
+        )
 
-    logger.info(
-        "Running Completeness Agent"
-    )
+        parsed = state["parsed_resume"]
 
-    parsed = state["parsed_resume"]
+        report = check_completeness(
+            parsed
+        )
 
-    report = check_completeness(
-        parsed
-    )
+        logger.info(
+            "Completeness Agent Finished"
+        )
 
-    logger.info(
-        "Completeness Agent Finished"
-    )
-
-    return {
-        "completeness": report
-    }
+        return {
+            "completeness": report
+        }
+    except Exception as e:
+        logger.error(f"Error in completeness_node: {e}")
+        import traceback
+        traceback.print_exc()
+        raise
 
 
 def review_node(
     state: AgentState
 ) -> Dict[str, Any]:
+    try:
+        logger.info(
+            "Running Review Agent"
+        )
 
-    logger.info(
-        "Running Review Agent"
-    )
+        parsed = state["parsed_resume"]
 
-    parsed = state["parsed_resume"]
+        review = prepare_review_data(
+            parsed
+        )
 
-    review = prepare_review_data(
-        parsed
-    )
+        logger.info(
+            "Review Agent Finished"
+        )
 
-    logger.info(
-        "Review Agent Finished"
-    )
-
-    return {
-        "review_required":
-        review["review_required"]
-    }
+        return {
+            "review_required":
+            review["review_required"]
+        }
+    except Exception as e:
+        logger.error(f"Error in review_node: {e}")
+        import traceback
+        traceback.print_exc()
+        raise
 
 def pdf_node(
     state: AgentState
 ):
+    try:
+        logger.info(
+            "Running PDF Agent"
+        )
 
-    logger.info(
-        "Running PDF Agent"
-    )
+        print("\n=============================================")
+        print("STAGE 11: DATA RECEIVED BY PDF GENERATOR")
+        print(f"Optimized Resume: {state.get('optimized_resume') is not None}")
+        print("=============================================\n")
 
-    optimized = state[
-        "optimized_resume"
-    ]
+        optimized = state[
+            "optimized_resume"
+        ]
 
-    # =========================
-    # DEBUG OUTPUT
-    # =========================
+        # =========================
+        # DEBUG OUTPUT
+        # =========================
 
-    print(
-        "\n========== PDF DEBUG =========="
-    )
+        print(
+            "\n========== PDF DEBUG =========="
+        )
 
-    print(
-        "\nOPTIMIZED SUMMARY =",
-        repr(
+        print(
+            "\nOPTIMIZED SUMMARY =",
+            repr(
+                getattr(
+                    optimized,
+                    "optimized_summary",
+                    ""
+                )
+            )
+        )
+
+        print(
+            "\nOPTIMIZED SKILLS =",
             getattr(
                 optimized,
-                "optimized_summary",
-                ""
+                "optimized_skills",
+                {}
             )
         )
-    )
 
-    print(
-        "\nOPTIMIZED SKILLS =",
-        getattr(
-            optimized,
-            "optimized_skills",
-            {}
-        )
-    )
+        if optimized.optimized_projects:
 
-    if optimized.optimized_projects:
+            print(
+                "\nPROJECT OBJECT =",
+                optimized.optimized_projects[0]
+            )
 
-        print(
-            "\nPROJECT OBJECT =",
-            optimized.optimized_projects[0]
-        )
+        if optimized.optimized_experience:
 
-    if optimized.optimized_experience:
+            print(
+                "\nEXPERIENCE OBJECT =",
+                optimized.optimized_experience[0]
+            )
 
         print(
-            "\nEXPERIENCE OBJECT =",
-            optimized.optimized_experience[0]
+            "\n===============================\n"
         )
 
-    print(
-        "\n===============================\n"
-    )
+        result = generate_pdf(
+            optimized
+        )
 
-    result = generate_pdf(
-        optimized
-    )
+        logger.info(
+            "PDF Agent Finished"
+        )
 
-    logger.info(
-        "PDF Agent Finished"
-    )
+        return {
 
-    return {
-
-        "latex_code":
-        result.get(
-            "latex_code"
-        ),
-
-        "pdf_path":
-        result.get(
-            "pdf_path"
-        ),
-
-        "error":
-        None if result.get(
-            "success"
-        ) else str(
+            "latex_code":
             result.get(
-                "errors"
+                "latex_code"
+            ),
+
+            "pdf_path":
+            result.get(
+                "pdf_path"
+            ),
+
+            "error":
+            None if result.get(
+                "success"
+            ) else str(
+                result.get(
+                    "errors"
+                )
             )
-        )
-    }
+        }
+    except Exception as e:
+        logger.error(f"Error in pdf_node: {e}")
+        import traceback
+        traceback.print_exc()
+        raise
 
 
 # ==========================================
